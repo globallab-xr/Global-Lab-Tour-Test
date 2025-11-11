@@ -1,0 +1,112 @@
+name: Sync Fork with Upstream
+
+on:
+  schedule:
+    # Run every hour to check for updates
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual triggering
+  push:
+    branches:
+      - main # Trigger on pushes to main branch
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout your fork
+      - name: Checkout Fork
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # Fetch all history for all branches and tags
+      
+      # Configure git
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+      
+      # Add upstream remote
+      - name: Add Upstream Remote
+        run: |
+          # Replace UPSTREAM_OWNER/UPSTREAM_REPO with your upstream repository
+          git remote add upstream https://github.com/minh-hahaha/Global-Lab-Tour-Test
+          git remote -v
+      
+      # Fetch upstream changes
+      - name: Fetch Upstream
+        run: |
+          git fetch upstream
+          git fetch upstream --tags
+      
+      # Merge upstream changes
+      - name: Merge Upstream
+        id: merge
+        run: |
+          # Check if there are changes to merge
+          git checkout main
+          
+          # Try to merge upstream/main into your main branch
+          if git merge upstream/main --no-edit; then
+            echo "merge_status=success" >> $GITHUB_OUTPUT
+            echo "✅ Successfully merged upstream changes"
+          else
+            echo "merge_status=conflict" >> $GITHUB_OUTPUT
+            echo "❌ Merge conflict detected"
+            exit 1
+          fi
+      
+      # Push changes to your fork
+      - name: Push Changes
+        if: steps.merge.outputs.merge_status == 'success'
+        run: |
+          git push origin main --force-with-lease
+          git push origin --tags
+      
+      # Create PR if there are conflicts (optional)
+      - name: Create Pull Request for Conflicts
+        if: failure() && steps.merge.outputs.merge_status == 'conflict'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: resolve merge conflicts with upstream'
+          title: '🔄 Sync with upstream - Merge Conflicts'
+          body: |
+            ## Merge Conflicts Detected
+            
+            This PR was automatically created because there are merge conflicts when syncing with the upstream repository.
+            
+            Please resolve the conflicts manually and merge this PR.
+            
+            ### Steps to resolve:
+            1. Check out this branch locally
+            2. Resolve the merge conflicts
+            3. Commit the resolved changes
+            4. Push and merge this PR
+          branch: sync-upstream-conflicts
+          base: main
+
+  # Optional: Run tests or other checks after sync
+  post-sync-checks:
+    needs: sync
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+      - name: Checkout Updated Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js (if needed)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      # Add your test commands here
+      - name: Run Tests
+        run: |
+          # Example: npm install && npm test
+          echo "Add your test commands here"
+      
+      - name: Notify Success
+        run: echo "✅ Fork successfully synced with upstream!"
