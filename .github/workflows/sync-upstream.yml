@@ -64,19 +64,3 @@ jobs:
           git push origin main --force-with-lease
           git push origin --tags
       
-      - name: Create Issue for Notification
-        if: steps.check.outputs.has_changes == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = '🔄 Fork synced with upstream';
-            const body = `Your fork has been automatically synced with the upstream repository at ${new Date().toISOString()}`;
-            
-            // Optional: Create an issue to notify about the sync
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['auto-sync']
-            });
